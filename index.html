@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Duck Road — How far can you cross?</title>
+<style>
+  :root{
+    --sky-day:#8FD3F4;
+    --accent:#FFB238;
+    --accent-2:#3AA655;
+    --panel:#0F3D2E;
+    --panel-2:#154a37;
+    --cream:#FFF7E6;
+    --danger:#E14B4B;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    font-family:'Baloo 2','Trebuchet MS',system-ui,-apple-system,sans-serif;
+    background:#0b2b20;
+    -webkit-tap-highlight-color: transparent;
+    user-select:none;
+  }
+  @font-face { font-family:'Baloo 2'; src: local('Arial Rounded MT Bold'); }
+  #game-container{ position:fixed; inset:0; }
+  canvas{ display:block; touch-action:none; }
+
+  .screen{
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:20; background:radial-gradient(circle at 50% 20%, #cdeeb8 0%, #7cc576 45%, #4a9d55 100%);
+    text-align:center; padding:20px; gap:14px;
+  }
+  .hidden{ display:none !important; }
+
+  .title-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:8px; }
+  .game-title{
+    font-size:clamp(40px,10vw,84px); color:var(--cream); margin:0; letter-spacing:1px;
+    text-shadow: 0 6px 0 #B8641E, 0 10px 18px rgba(0,0,0,.35);
+    transform: rotate(-2deg);
+  }
+  .game-subtitle{ font-size:clamp(14px,3vw,20px); color:#1c4d2e; font-weight:700; margin:2px 0 0 0; }
+
+  .menu-buttons{ display:flex; flex-direction:column; gap:12px; width:min(320px,80vw); margin-top:10px; }
+  .btn{
+    border:none; border-radius:16px; padding:16px 22px; font-size:19px; font-weight:800;
+    cursor:pointer; box-shadow: 0 6px 0 rgba(0,0,0,.25), var(--shadow); transition:transform .08s ease;
+    display:flex; align-items:center; justify-content:center; gap:10px; color:#fff;
+  }
+  .btn:active{ transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  .btn-primary{ background:linear-gradient(180deg,#FFC94D,var(--accent)); color:#5A3200; }
+  .btn-secondary{ background:linear-gradient(180deg,#5CC26E,var(--accent-2)); }
+  .btn-dark{ background:linear-gradient(180deg,#2c6b4a,#1c4d33); }
+  .btn-danger{ background:linear-gradient(180deg,#F17A7A,var(--danger)); }
+  .btn-small{ padding:10px 16px; font-size:15px; border-radius:12px; }
+
+  .panel-card{
+    background:var(--panel); color:var(--cream); border-radius:22px; padding:22px;
+    width:min(560px,92vw); max-height:82vh; overflow-y:auto; box-shadow:var(--shadow);
+    border: 3px solid #0a2a1f;
+  }
+  .panel-card h2{ margin:0 0 6px 0; font-size:26px; }
+  .panel-card p.hint{ opacity:.75; margin:0 0 16px 0; font-size:13px; }
+
+  .duck-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; margin-bottom:14px; }
+  .duck-card{
+    background:var(--panel-2); border-radius:14px; padding:10px; text-align:center; cursor:pointer;
+    border:3px solid transparent; transition:border-color .15s;
+  }
+  .duck-card.selected{ border-color:var(--accent); }
+  .duck-card.locked{ opacity:.55; }
+  .duck-emoji{ font-size:38px; display:block; margin-bottom:4px; }
+  .duck-name{ font-weight:800; font-size:13px; }
+  .duck-price{ font-size:12px; opacity:.85; margin-top:2px; }
+
+  .shop-row{ display:flex; align-items:center; justify-content:space-between; background:var(--panel-2);
+    border-radius:12px; padding:10px 14px; margin-bottom:10px; }
+  .shop-row .info{ text-align:left; }
+  .shop-row .info b{ display:block; font-size:15px; }
+  .shop-row .info span{ font-size:12px; opacity:.8; }
+
+  .ach-row{ display:flex; align-items:center; gap:12px; background:var(--panel-2); border-radius:12px;
+    padding:10px 14px; margin-bottom:8px; }
+  .ach-row.done{ background:#1f6b46; }
+  .ach-icon{ font-size:24px; }
+  .ach-text b{ display:block; font-size:14px; } .ach-text span{ font-size:12px; opacity:.8; }
+
+  .settings-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 4px;
+    border-bottom:1px solid rgba(255,255,255,.1); font-size:15px; font-weight:700;}
+
+  .toggle{ width:52px; height:28px; background:#0a2a1f; border-radius:20px; position:relative; cursor:pointer; flex-shrink:0;}
+  .toggle.on{ background:var(--accent-2); }
+  .toggle .knob{ position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff;
+    transition:left .15s; }
+  .toggle.on .knob{ left:27px; }
+
+  /* HUD */
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:10; font-weight:800; color:#fff; }
+  .hud-top{ position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between;
+    padding:12px 16px; align-items:flex-start; }
+  .hud-pill{ background:rgba(10,40,25,.65); border-radius:14px; padding:8px 14px; backdrop-filter:blur(3px);
+    box-shadow:0 4px 10px rgba(0,0,0,.25); font-size:15px; }
+  .hearts{ font-size:20px; letter-spacing:2px; }
+  .hud-stats{ display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  .hud-center-warning{
+    position:absolute; top:14%; left:50%; transform:translateX(-50%); background:rgba(210,30,30,.85);
+    color:#fff; padding:8px 18px; border-radius:30px; font-size:16px; opacity:0; transition:opacity .2s;
+    box-shadow:0 4px 14px rgba(0,0,0,.4);
+  }
+  .hud-center-warning.show{ opacity:1; animation:blinkwarn .5s infinite; }
+  @keyframes blinkwarn{ 50%{ opacity:.35; } }
+
+  .toast{ position:absolute; top:70px; left:50%; transform:translateX(-50%); background:rgba(255,178,56,.95);
+    color:#5A3200; padding:10px 18px; border-radius:14px; font-size:14px; opacity:0; transition:all .3s;
+    box-shadow:var(--shadow); white-space:nowrap; }
+  .toast.show{ opacity:1; top:84px; }
+
+  .powerup-bar{ position:absolute; bottom:110px; left:50%; transform:translateX(-50%); display:flex; gap:8px; }
+  .powerup-chip{ background:rgba(10,40,25,.7); border-radius:10px; padding:6px 10px; font-size:18px; display:flex;
+    align-items:center; gap:6px; }
+  .powerup-chip small{ font-size:11px; font-weight:700; }
+
+  /* mobile controls */
+  #touch-controls{ position:absolute; bottom:16px; right:16px; display:grid; grid-template-columns:56px 56px 56px;
+    grid-template-rows:56px 56px 56px; gap:6px; pointer-events:auto; }
+  .tc-btn{ background:rgba(255,255,255,.25); border:2px solid rgba(255,255,255,.5); border-radius:14px;
+    display:flex; align-items:center; justify-content:center; font-size:22px; color:#fff; }
+  .tc-btn:active{ background:rgba(255,255,255,.5); }
+  #tc-up{ grid-column:2; grid-row:1;} #tc-left{grid-column:1; grid-row:2;} #tc-down{grid-column:2; grid-row:3;}
+  #tc-right{grid-column:3; grid-row:2;}
+
+  #mute-btn{ position:absolute; top:12px; right:16px; pointer-events:auto; background:rgba(10,40,25,.6);
+    border:none; color:#fff; font-size:18px; border-radius:10px; padding:8px 10px; cursor:pointer; }
+
+  #pause-btn{ position:absolute; top:12px; left:16px; pointer-events:auto; background:rgba(10,40,25,.6);
+    border:none; color:#fff; font-size:16px; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:800;}
+
+  .gameover-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0; }
+  .go-stat{ background:var(--panel-2); border-radius:12px; padding:10px; }
+  .go-stat b{ display:block; font-size:20px; } .go-stat span{ font-size:12px; opacity:.8; }
+
+  #loading{ position:fixed; inset:0; z-index:50; background:#0b2b20; display:flex; align-items:center;
+    justify-content:center; color:#fff; font-size:20px; font-weight:800; flex-direction:column; gap:10px;}
+  .spinner{ width:44px; height:44px; border:5px solid rgba(255,255,255,.25); border-top-color:#FFC94D;
+    border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  @media (max-width:480px){
+    .panel-card{ padding:14px; }
+    .duck-grid{ grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Hatching the world…</div>
+</div>
+
+<div id="game-container"></div>
+
+<!-- START MENU -->
+<div id="screen-start" class="screen hidden">
+  <div class="title-wrap">
+    <h1 class="game-title">🦆 DUCK ROAD</h1>
+    <p class="game-subtitle">"How far can you cross?"</p>
+  </div>
+  <div class="menu-buttons">
+    <button class="btn btn-primary" id="btn-play">▶ PLAY</button>
+    <button class="btn btn-secondary" id="btn-ducks">🦆 DUCKS</button>
+    <button class="btn btn-secondary" id="btn-shop">🛒 SHOP</button>
+    <button class="btn btn-secondary" id="btn-achievements">🏆 ACHIEVEMENTS</button>
+    <button class="btn btn-dark" id="btn-settings">⚙ SETTINGS</button>
+  </div>
+  <p style="color:#1c4d2e;font-weight:700;font-size:13px;margin-top:4px;">🍞 Bread: <span id="start-bread">0</span> &nbsp;·&nbsp; Best score: <span id="start-best">0</span></p>
+</div>
+
+<!-- DUCKS MENU -->
+<div id="screen-ducks" class="screen hidden">
+  <div class="panel-card">
+    <h2>🦆 Duck Collection</h2>
+    <p class="hint">Tap a duck to select it. Locked ducks cost bread to unlock.</p>
+    <div class="duck-grid" id="duck-grid"></div>
+    <button class="btn btn-dark btn-small" id="ducks-back">🏠 BACK</button>
+  </div>
+</div>
+
+<!-- SHOP -->
+<div id="screen-shop" class="screen hidden">
+  <div class="panel-card">
+    <h2>🛒 Shop</h2>
+    <p class="hint">Spend bread — no real money, ever.</p>
+    <div id="shop-list"></div>
+    <button class="btn btn-dark btn-small" id="shop-back">🏠 BACK</button>
+  </div>
+</div>
+
+<!-- ACHIEVEMENTS -->
+<div id="screen-achievements" class="screen hidden">
+  <div class="panel-card">
+    <h2>🏆 Achievements</h2>
+    <div id="ach-list"></div>
+    <button class="btn btn-dark btn-small" id="ach-back">🏠 BACK</button>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="screen-settings" class="screen hidden">
+  <div class="panel-card">
+    <h2>⚙ Settings</h2>
+    <div class="settings-row">🎵 Music <div class="toggle on" id="toggle-music"><div class="knob"></div></div></div>
+    <div class="settings-row">🔊 Sound <div class="toggle on" id="toggle-sound"><div class="knob"></div></div></div>
+    <div class="settings-row">📳 Screen shake <div class="toggle on" id="toggle-shake"><div class="knob"></div></div></div>
+    <p class="hint" style="margin-top:14px;">Desktop: WASD / Arrow keys to move. Mobile: swipe or use the on-screen pad.</p>
+    <button class="btn btn-danger btn-small" id="btn-reset-save" style="margin-top:10px;">Reset progress</button>
+    <button class="btn btn-dark btn-small" id="settings-back" style="margin-top:10px;">🏠 BACK</button>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="screen-gameover" class="screen hidden">
+  <div class="panel-card">
+    <h2 id="go-title">OH NO! THE DUCK GOT CAUGHT! 🦆</h2>
+    <div class="gameover-stats">
+      <div class="go-stat"><b id="go-score">0</b><span>Score</span></div>
+      <div class="go-stat"><b id="go-distance">0m</b><span>Distance</span></div>
+      <div class="go-stat"><b id="go-bread">0</b><span>Bread</span></div>
+      <div class="go-stat"><b id="go-best">0</b><span>Best Score</span></div>
+    </div>
+    <div class="menu-buttons">
+      <button class="btn btn-primary" id="btn-again">🔄 PLAY AGAIN</button>
+      <button class="btn btn-secondary" id="btn-go-ducks">🦆 DUCKS</button>
+      <button class="btn btn-dark" id="btn-go-home">🏠 HOME</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="hud-pill hearts" id="hud-hearts">❤️❤️❤️</div>
+    <div class="hud-stats">
+      <div class="hud-pill" id="hud-score">SCORE: 0</div>
+      <div class="hud-pill" id="hud-distance">DISTANCE: 0m</div>
+      <div class="hud-pill" id="hud-bread">🍞 BREAD: 0</div>
+    </div>
+  </div>
+  <div class="hud-center-warning" id="train-warning">🚆 TRAIN INCOMING!</div>
+  <div class="toast" id="toast"></div>
+  <div class="powerup-bar" id="powerup-bar"></div>
+  <button id="pause-btn">⏸ PAUSE</button>
+  <button id="mute-btn">🔊</button>
+  <div id="touch-controls">
+    <div class="tc-btn" id="tc-up">▲</div>
+    <div class="tc-btn" id="tc-left">◀</div>
+    <div class="tc-btn" id="tc-down">▼</div>
+    <div class="tc-btn" id="tc-right">▶</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r160/three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
